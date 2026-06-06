@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registres Littéraires — Quiz Infini</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.07);
+    --gold: #f5c842;
+    --gold-dim: rgba(245,200,66,0.15);
+    --gold-glow: rgba(245,200,66,0.35);
+    --red: #e84040;
+    --red-dim: rgba(232,64,64,0.15);
+    --green: #4cde8f;
+    --green-dim: rgba(76,222,143,0.12);
+    --purple: #a78bfa;
+    --purple-dim: rgba(167,139,250,0.12);
+    --text: #f0ede8;
+    --muted: rgba(240,237,232,0.45);
+    --faint: rgba(240,237,232,0.15);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+    opacity: 0.6;
+  }
+
+  /* Ambient glow */
+  .ambient {
+    position: fixed; top: -20vh; left: 50%; transform: translateX(-50%);
+    width: 600px; height: 400px;
+    background: radial-gradient(ellipse, rgba(167,139,250,0.07) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+    transition: background 0.8s ease;
+  }
+  .ambient.danger { background: radial-gradient(ellipse, rgba(232,64,64,0.08) 0%, transparent 70%); }
+  .ambient.success { background: radial-gradient(ellipse, rgba(76,222,143,0.07) 0%, transparent 70%); }
+
+  /* Header */
+  header {
+    position: relative; z-index: 10;
+    width: 100%; max-width: 680px;
+    padding: 2rem 1.5rem 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 13px; font-weight: 400; letter-spacing: 0.15em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .logo span { color: var(--gold); }
+
+  /* Score display */
+  .score-display {
+    display: flex; align-items: center; gap: 1rem;
+  }
+  .score-block {
+    text-align: right;
+  }
+  .score-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .score-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 28px; font-weight: 500;
+    color: var(--gold);
+    transition: transform 0.15s ease, color 0.3s ease;
+    display: inline-block;
+  }
+  .score-value.bump { transform: scale(1.35); }
+  .score-value.zero { color: var(--red); animation: shake 0.4s ease; }
+
+  /* Streak */
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; color: var(--muted);
+    background: var(--surface); border: 0.5px solid var(--border);
+    padding: 4px 10px; border-radius: 99px;
+    transition: all 0.3s;
+  }
+  .streak.fire { color: var(--gold); border-color: rgba(245,200,66,0.3); background: var(--gold-dim); }
+
+  /* Main */
+  main {
+    position: relative; z-index: 10;
+    width: 100%; max-width: 680px;
+    padding: 2rem 1.5rem 3rem;
+  }
+
+  /* Progress bar */
+  .progress-wrap { margin-bottom: 1.5rem; }
+  .progress-meta {
+    display: flex; justify-content: space-between;
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--faint); margin-bottom: 8px;
+  }
+  .progress-track {
+    height: 2px; background: var(--border); border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: var(--gold);
+    border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 0 8px var(--gold-glow);
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    animation: cardIn 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-top {
+    padding: 1.5rem 1.75rem 1.25rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .registre-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--purple);
+    background: var(--purple-dim);
+    border: 0.5px solid rgba(167,139,250,0.25);
+    padding: 4px 12px; border-radius: 99px;
+    margin-bottom: 1rem;
+  }
+
+  .question-num {
+    font-size: 11px; color: var(--faint);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 0.4rem;
+  }
+
+  .question-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px; font-weight: 700; line-height: 1.4;
+    color: var(--text);
+    margin-bottom: 1.25rem;
+  }
+
+  .excerpt {
+    background: var(--surface2);
+    border-left: 2px solid var(--gold);
+    padding: 0.9rem 1.1rem;
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    font-size: 15px; line-height: 1.65;
+    color: rgba(240,237,232,0.8);
+  }
+  .excerpt cite {
+    display: block; margin-top: 0.5rem;
+    font-style: normal; font-size: 12px;
+    color: var(--muted); letter-spacing: 0.05em;
+  }
+
+  /* Options */
+  .options {
+    padding: 1.25rem 1.75rem;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .opt {
+    position: relative; overflow: hidden;
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 400;
+    color: var(--text);
+    cursor: pointer; text-align: left;
+    transition: border-color 0.15s, background 0.15s, transform 0.12s;
+    line-height: 1.35;
+  }
+  .opt::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: var(--gold); opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .opt:hover:not(:disabled)::before { opacity: 0.04; }
+  .opt:hover:not(:disabled) {
+    border-color: rgba(245,200,66,0.3);
+    transform: translateY(-1px);
+  }
+  .opt:active:not(:disabled) { transform: scale(0.98); }
+  .opt:disabled { cursor: default; }
+
+  .opt-letter {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; font-weight: 500;
+    color: var(--muted);
+    background: var(--border);
+    width: 20px; height: 20px; line-height: 20px;
+    text-align: center; border-radius: 4px;
+    margin-right: 8px;
+    transition: background 0.2s, color 0.2s;
+    vertical-align: middle;
+  }
+
+  .opt.correct {
+    background: rgba(76,222,143,0.1);
+    border-color: rgba(76,222,143,0.5);
+    color: var(--green);
+    transform: none;
+  }
+  .opt.correct .opt-letter { background: rgba(76,222,143,0.25); color: var(--green); }
+
+  .opt.wrong {
+    background: rgba(232,64,64,0.08);
+    border-color: rgba(232,64,64,0.4);
+    color: var(--red);
+    animation: wrongShake 0.3s ease;
+    transform: none;
+  }
+  .opt.wrong .opt-letter { background: rgba(232,64,64,0.2); color: var(--red); }
+
+  .opt.reveal {
+    background: rgba(76,222,143,0.06);
+    border-color: rgba(76,222,143,0.3);
+    color: rgba(76,222,143,0.7);
+  }
+  .opt.reveal .opt-letter { background: rgba(76,222,143,0.15); color: rgba(76,222,143,0.7); }
+
+  @keyframes wrongShake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    60% { transform: translateX(6px); }
+  }
+
+  /* Feedback */
+  .feedback {
+    margin: 0 1.75rem 1.25rem;
+    padding: 1rem 1.25rem;
+    border-radius: 10px;
+    font-size: 14px; line-height: 1.65;
+    display: none;
+    animation: feedIn 0.3s ease;
+  }
+  @keyframes feedIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .feedback.show { display: block; }
+  .feedback.good {
+    background: var(--green-dim);
+    border: 0.5px solid rgba(76,222,143,0.25);
+    color: rgba(240,237,232,0.85);
+  }
+  .feedback.bad {
+    background: var(--red-dim);
+    border: 0.5px solid rgba(232,64,64,0.25);
+    color: rgba(240,237,232,0.85);
+  }
+  .feedback-head {
+    font-weight: 500; margin-bottom: 0.4rem;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .feedback.good .feedback-head { color: var(--green); }
+  .feedback.bad .feedback-head { color: var(--red); }
+
+  /* Points burst */
+  .points-burst {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-family: 'Playfair Display', serif;
+    font-size: 64px; font-weight: 900;
+    color: var(--gold);
+    pointer-events: none; z-index: 100;
+    opacity: 0; text-shadow: 0 0 30px var(--gold-glow);
+  }
+  .points-burst.animate {
+    animation: burst 0.7s cubic-bezier(0.4,0,0.2,1) forwards;
+  }
+  @keyframes burst {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+    30%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    70%  { opacity: 1; transform: translate(-50%, -60%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -80%) scale(0.95); }
+  }
+
+  /* Game over */
+  .gameover {
+    text-align: center;
+    padding: 3rem 2rem;
+    animation: cardIn 0.4s ease;
+  }
+  .gameover-icon { font-size: 56px; margin-bottom: 1rem; }
+  .gameover-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px; font-weight: 900;
+    color: var(--red); margin-bottom: 0.5rem;
+  }
+  .gameover-score {
+    font-family: 'DM Mono', monospace;
+    font-size: 48px; font-weight: 500;
+    color: var(--text); margin: 1rem 0 0.25rem;
+  }
+  .gameover-sub { font-size: 14px; color: var(--muted); margin-bottom: 0.75rem; }
+  .gameover-msg {
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    font-size: 13px; line-height: 1.6;
+    color: var(--muted);
+    margin: 1rem 0 1.75rem;
+    text-align: left;
+  }
+  .gameover-msg strong { color: var(--text); }
+
+  .restart-btn {
+    background: var(--gold); color: #0a0a0f;
+    border: none; border-radius: 10px;
+    padding: 0.9rem 2.5rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.2s;
+    box-shadow: 0 0 20px var(--gold-glow);
+    letter-spacing: 0.03em;
+  }
+  .restart-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 30px var(--gold-glow); }
+  .restart-btn:active { transform: scale(0.97); }
+
+  /* Next btn */
+  .next-wrap { padding: 0 1.75rem 1.5rem; }
+  .next-btn {
+    width: 100%; padding: 0.85rem;
+    background: transparent; color: var(--gold);
+    border: 0.5px solid rgba(245,200,66,0.35);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.12s;
+    letter-spacing: 0.03em;
+    display: none;
+  }
+  .next-btn.show { display: block; }
+  .next-btn:hover { background: var(--gold-dim); transform: translateY(-1px); }
+  .next-btn:active { transform: scale(0.98); }
+
+  /* High score bar */
+  .highscore-bar {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; color: var(--faint);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 1.25rem;
+  }
+  .hs-val { color: var(--gold); font-family: 'DM Mono', monospace; }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+  /* Stars bg */
+  .stars {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    overflow: hidden;
+  }
+  .star {
+    position: absolute; background: white; border-radius: 50%;
+    opacity: 0;
+    animation: twinkle var(--d, 4s) var(--delay, 0s) infinite;
+  }
+  @keyframes twinkle {
+    0%,100% { opacity: 0; }
+    50% { opacity: var(--op, 0.4); }
+  }
+
+@media (max-width: 600px) {
+  .options { grid-template-columns: 1fr !important; }
+  .question-text { font-size: 18px !important; }
+  header, main { padding-left: 1rem !important; padding-right: 1rem !important; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="ambient" id="ambient"></div>
+<div class="stars" id="stars"></div>
+<div class="points-burst" id="burst">+10</div>
+
+<header>
+  <div class="logo">Quiz <span>Littéraire</span></div>
+  <div class="score-display">
+    <div class="streak" id="streak">🔥 ×0</div>
+    <div class="score-block">
+      <div class="score-label">Score</div>
+      <div class="score-value" id="score-val">0</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="progress-wrap">
+    <div class="progress-meta">
+      <span id="q-meta">Question 1</span>
+      <span id="hs-display" class="hs-val">Meilleur : 0</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+  </div>
+
+  <div class="card" id="card">
+    <div id="game-area"></div>
+  </div>
+</main>
+
+<script>
+const QUESTIONS = [
+  {
+    registre: "Tragique",
+    icon: "💀",
+    q: "Quel registre dominant reconnaît-on dans cet extrait de Racine ?",
+    excerpt: "« Ariane, ma sœur, de quel amour blessée\nVous mourûtes aux bords où vous fûtes laissée ! »",
+    author: "Racine, Phèdre (1677)",
+    options: ["Comique", "Tragique", "Lyrique", "Épique"],
+    answer: 1,
+    tip: "<strong>Le registre tragique</strong> place des personnages nobles face à un destin implacable dont ils ne peuvent s'échapper. Ici, la mort d'Ariane abandonnée est inévitable, convoquée comme un miroir du destin de Phèdre. On repère : le vocabulaire de la mort (<em>mourûtes</em>), l'apostrophe pathétique, la fatalité amoureuse. Le lecteur ressent terreur et pitié — les deux émotions de la catharsis aristotélicienne."
+  },
+  {
+    registre: "Lyrique",
+    icon: "💫",
+    q: "Identifiez le registre de ce poème de Lamartine.",
+    excerpt: "« Ô temps, suspends ton vol ! et vous, heures propices,\nSuspendez votre cours ! »",
+    author: "Lamartine, Le Lac (1820)",
+    options: ["Lyrique", "Satirique", "Tragique", "Didactique"],
+    answer: 0,
+    tip: "<strong>Le registre lyrique</strong> exprime les émotions intimes et subjectives du poète — amour, mélancolie, nostalgie, joie. Ici : l'apostrophe au temps (<em>Ô temps</em>), l'emploi du subjonctif de supplication, le cadre romantique du lac. Le poète parle à la première personne et cherche à partager son émotion avec le lecteur. C'est la grande tradition de Romantisme lyrique au XIXe siècle."
+  },
+  {
+    registre: "Épique",
+    icon: "⚔️",
+    q: "Quel registre magnifie ce passage de Victor Hugo ?",
+    excerpt: "« Les géants remuaient les rochers comme des cailloux,\nSoulevaient les montagnes comme des boucliers. »",
+    author: "Hugo, La Légende des Siècles (1859)",
+    options: ["Comique", "Fantastique", "Épique", "Réaliste"],
+    answer: 2,
+    tip: "<strong>Le registre épique</strong> amplifie les actions héroïques par la grandeur, l'hyperbole et le gigantisme. On repère : comparaisons démesurées (montagnes = boucliers), personnages surhumains, images de force titanesque. Ce registre est hérité des grandes épopées antiques (<em>L'Iliade</em>, <em>L'Odyssée</em>). Hugo l'utilise pour raconter l'histoire de l'humanité à une échelle mythique."
+  },
+  {
+    registre: "Comique",
+    icon: "😂",
+    q: "Quel registre Molière exploite-t-il dans cette scène ?",
+    excerpt: "« Harpagon : On m'a volé ! On m'a volé ! Au voleur !\nQue je ne sache pas qui c'est, je me veux pendre ! »",
+    author: "Molière, L'Avare (1668)",
+    options: ["Tragique", "Comique", "Polémique", "Lyrique"],
+    answer: 1,
+    tip: "<strong>Le registre comique</strong> vise à provoquer le rire par différents procédés : quiproquo, hyperbole absurde, caricature, comique de répétition. Ici, l'avarice d'Harpagon est poussée à l'extrême (se pendre pour une cassette !) — c'est la <em>caricature</em>. Molière utilise le comique pour critiquer les vices humains : l'argent devient plus précieux que la vie, ce qui crée un effet comique mais aussi une satire sociale."
+  },
+  {
+    registre: "Satirique",
+    icon: "🗡️",
+    q: "Quel registre Voltaire manie-t-il avec cette formule ironique ?",
+    excerpt: "« Tout est pour le mieux dans le meilleur\ndes mondes possibles. »",
+    author: "Voltaire, Candide (1759)",
+    options: ["Lyrique", "Réaliste", "Satirique", "Épique"],
+    answer: 2,
+    tip: "<strong>Le registre satirique</strong> dénonce avec ironie, humour ou véhémence les vices d'une société ou d'une idée. Voltaire tourne en dérision l'optimisme naïf de Leibniz à travers le personnage de Pangloss. L'ironie est totale : Candide traverse guerres, massacres, tremblements de terre, et Pangloss répète cette formule absurde. Le registre satirique suppose un écart entre ce qui est dit et ce qui est montré."
+  },
+  {
+    registre: "Fantastique",
+    icon: "👻",
+    q: "Quel registre Maupassant installe-t-il dans ce début de nouvelle ?",
+    excerpt: "« Est-ce moi qui deviens fou, ou est-ce la réalité\nqui se dérobe ? Quelqu'un avait bu l'eau de ma carafe\npendant la nuit. »",
+    author: "Maupassant, Le Horla (1887)",
+    options: ["Réaliste", "Fantastique", "Comique", "Épique"],
+    answer: 1,
+    tip: "<strong>Le registre fantastique</strong> crée une hésitation entre l'explication rationnelle et surnaturelle — c'est la définition de Todorov. Le lecteur hésite avec le narrateur : est-il fou ou y a-t-il vraiment une présence ? On repère : le doute du narrateur, la rupture de l'ordinaire, le phénomène inexpliqué. À distinguer du merveilleux (où le surnaturel est accepté) et de l'étrange (où tout a une explication rationnelle)."
+  },
+  {
+    registre: "Pathétique",
+    icon: "😢",
+    q: "Quel registre cherche à émouvoir dans ce poème de Victor Hugo ?",
+    excerpt: "« Elle était pâle, et pourtant rose,\nPetite avec de grands cheveux.\nSa mère la coiffait… »",
+    author: "Hugo, Les Contemplations (1856)",
+    options: ["Épique", "Pathétique", "Satirique", "Didactique"],
+    answer: 1,
+    tip: "<strong>Le registre pathétique</strong> cherche à susciter la pitié, les larmes, la compassion. Il joue sur la sensibilité du lecteur. Ici, Hugo évoque sa fille Léopoldine, morte noyée à 19 ans. L'innocence de l'enfant, la douceur des détails (rose, cheveux, coiffure) renforcent la douleur de la perte. La tendresse des images contraste avec la mort — c'est ce contraste qui brise le lecteur."
+  },
+  {
+    registre: "Polémique",
+    icon: "✊",
+    q: "Quel registre Zola adopte-t-il dans ce manifeste retentissant ?",
+    excerpt: "« J'accuse le lieutenant-colonel du Paty de Clam\nd'avoir été l'ouvrier diabolique de l'erreur judiciaire. »",
+    author: "Zola, J'accuse… ! (1898)",
+    options: ["Lyrique", "Polémique", "Fantastique", "Comique"],
+    answer: 1,
+    tip: "<strong>Le registre polémique</strong> attaque une cible avec virulence pour convaincre et provoquer l'indignation. On repère : attaques directes (<em>J'accuse</em>), lexique fort (<em>diabolique</em>, <em>erreur judiciaire</em>), ton passionné et engagé. Zola défend Dreyfus injustement condamné. Le polémique se distingue du persuasif par son agressivité et son ton accusateur. Il vise autant à dénoncer qu'à convaincre."
+  },
+  {
+    registre: "Réaliste",
+    icon: "🏭",
+    q: "Quel registre domine dans cette description de Zola ?",
+    excerpt: "« La fosse soufflait son haleine grasse et tiède,\nl'odeur de sueur, de houille humide et de graisse rance. »",
+    author: "Zola, Germinal (1885)",
+    options: ["Fantastique", "Lyrique", "Réaliste", "Épique"],
+    answer: 2,
+    tip: "<strong>Le registre réaliste</strong> décrit le monde avec précision, objectivité, et détails sensoriels concrets. Il vise à reproduire la réalité sociale fidèlement. On repère : champ lexical des sensations (odeur, chaleur, texture), vocabulaire technique (<em>houille</em>), absence d'idéalisation. Zola documente les conditions minières avec minutie — c'est le Naturalisme, une variante extrême du Réalisme."
+  },
+  {
+    registre: "Didactique",
+    icon: "📚",
+    q: "Quel registre La Fontaine emploie-t-il à la fin de ses fables ?",
+    excerpt: "« Travaillez, prenez de la peine :\nC'est le fonds qui manque le moins. »",
+    author: "La Fontaine, Le Laboureur et ses Enfants (1668)",
+    options: ["Comique", "Didactique", "Polémique", "Tragique"],
+    answer: 1,
+    tip: "<strong>Le registre didactique</strong> a pour but d'enseigner, de transmettre un savoir ou une morale. La fable se structure toujours autour d'une leçon explicite (la <em>morale</em>). On repère : l'impératif à valeur générale (<em>travaillez</em>), la formule sentencieuse, le ton sentencieux. La Fontaine s'inscrit dans la tradition d'Ésope et Phèdre : plaire pour instruire (<em>placere et docere</em>)."
+  },
+  {
+    registre: "Merveilleux",
+    icon: "✨",
+    q: "Quel registre caractérise ce début de conte ?",
+    excerpt: "« Il était une fois, dans un pays lointain, une princesse\nqui dormait depuis cent ans, gardée par un dragon de feu. »",
+    author: "Conte traditionnel",
+    options: ["Fantastique", "Épique", "Merveilleux", "Réaliste"],
+    answer: 2,
+    tip: "<strong>Le registre merveilleux</strong> accepte le surnaturel comme allant de soi — pas d'hésitation, pas de peur. Contrairement au <em>fantastique</em>, le merveilleux ne pose pas de questions : les fées, dragons et enchantements font partie du monde naturel du récit. Formule d'incipit (<em>Il était une fois</em>), monde parallèle, créatures surnaturelles : tout est accepté sans questionnement."
+  },
+  {
+    registre: "Tragique",
+    icon: "💀",
+    q: "Quel registre domine dans cette réplique de Corneille ?",
+    excerpt: "« Va, cours, vole et nous venge !\n— Il m'est cher, sa victoire m'est douce,\nmais hélas ! par quel bras va-t-il m'être rendu ? »",
+    author: "Corneille, Le Cid (1637)",
+    options: ["Lyrique", "Tragique", "Polémique", "Comique"],
+    answer: 1,
+    tip: "<strong>Le registre tragique</strong> dans Le Cid : le héros est déchiré entre deux devoirs impossibles (amour vs honneur). C'est le <em>dilemme cornélien</em> classique. On repère : la tension entre désir et devoir, le vocabulaire du conflit intérieur, la fatalité de la situation. La tragédie classique exige que le personnage choisisse entre deux valeurs également légitimes — c'est ce qui le détruit."
+  },
+  {
+    registre: "Lyrique",
+    icon: "💫",
+    q: "Quel registre Baudelaire explore-t-il dans ce sonnet ?",
+    excerpt: "« Spleen ! — Quand le ciel bas et lourd pèse comme un couvercle\nSur l'esprit gémissant en proie aux longs ennuis. »",
+    author: "Baudelaire, Les Fleurs du Mal (1857)",
+    options: ["Satirique", "Lyrique", "Fantastique", "Didactique"],
+    answer: 1,
+    tip: "<strong>Le registre lyrique baudelairien</strong> est singulier : c'est un lyrisme sombre, angoissé, personnel. Le <em>spleen</em> — ennui existentiel, mélancolie profonde — est une invention baudelairienne. On repère : métaphore filée du ciel-couvercle (oppression), «l'esprit gémissant», la première personne implicite. Baudelaire modernise le lyrisme en lui donnant une dimension tragique et urbaine."
+  },
+  {
+    registre: "Épique",
+    icon: "⚔️",
+    q: "Quel registre Homère convoque-t-il dans ce passage ?",
+    excerpt: "« Achille, semblable à un dieu, s'élança sur les rangs\nennemis comme le lion fond sur le troupeau. »",
+    author: "Homère, L'Iliade (VIIIe s. av. J.-C.)",
+    options: ["Pathétique", "Comique", "Lyrique", "Épique"],
+    answer: 3,
+    tip: "<strong>Le registre épique</strong> : comparaisons héroïques (<em>semblable à un dieu</em>), simile homérique (comparaison développée avec <em>comme le lion</em>), personnage hors du commun. L'épopée magnifie les exploits guerriers et les vertus héroïques. Ces procédés sont fondateurs du genre épique occidental : ils seront repris par Virgile (<em>L'Énéide</em>), puis Hugo, Claudel, Césaire."
+  },
+  {
+    registre: "Comique",
+    icon: "😂",
+    q: "Quel registre Rabelais manie-t-il dans cette scène de festin ?",
+    excerpt: "« Gargantua mangea six pèlerins en salade,\nsans les voir ni les sentir. »",
+    author: "Rabelais, Gargantua (1534)",
+    options: ["Réaliste", "Merveilleux", "Comique", "Tragique"],
+    answer: 2,
+    tip: "<strong>Le registre comique rabelaisien</strong> est un comique de l'excès et du corps : c'est le <em>grotesque</em> au sens de Bakhtine. L'hyperbole gigantesque (manger des pèlerins sans s'en apercevoir), l'absurde et l'humour corporel définissent ce style. Rabelais hérite de la tradition carnavalesque médiévale : tout est exagéré, renversé, mis en spectacle pour rire... et réfléchir."
+  },
+  {
+    registre: "Réaliste",
+    icon: "🏭",
+    q: "Quel registre Flaubert adopte-t-il dans ce portrait de Madame Bovary ?",
+    excerpt: "« Elle était à la fenêtre, regardant le jardin.\nL'arsenic était sur la table. Elle attendait. »",
+    author: "Flaubert, Madame Bovary (1857)",
+    options: ["Fantastique", "Réaliste", "Lyrique", "Épique"],
+    answer: 1,
+    tip: "<strong>Le registre réaliste</strong> flaubertien : précision froide, détachement narratif, effacement du narrateur. Flaubert ne commente pas, ne juge pas — il montre. Le style indirect libre (entrer dans la conscience sans marquer la parole) est sa signature. On repère : objets concrets (arsenic, fenêtre, jardin), pas d'effusion émotionnelle, temporalité exacte. C'est le réalisme psychologique à son sommet."
+  },
+];
+
+let score = 0;
+let streak = 0;
+let highScore = parseInt(localStorage.getItem('rl_hs') || '0');
+let questionCount = 0;
+let pool = [];
+let current = null;
+let answered = false;
+let lastWrong = null;
+
+function getPool() {
+  pool = [...QUESTIONS].sort(() => Math.random() - 0.5);
+}
+
+function nextQuestion() {
+  if (pool.length === 0) getPool();
+  current = pool.pop();
+  answered = false;
+  questionCount++;
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const area = document.getElementById('game-area');
+  const letters = ['A','B','C','D'];
+  const pct = Math.min(100, (score / Math.max(highScore, 100)) * 100);
+
+  document.getElementById('q-meta').textContent = `Question ${questionCount}`;
+  document.getElementById('progress').style.width = pct + '%';
+  document.getElementById('hs-display').textContent = `Meilleur : ${highScore}`;
+
+  const streakEl = document.getElementById('streak');
+  streakEl.textContent = `🔥 ×${streak}`;
+  streakEl.className = streak >= 3 ? 'streak fire' : 'streak';
+
+  area.innerHTML = `
+    <div class="card-top">
+      <div class="question-num">Question ${questionCount}</div>
+      <p class="question-text">${current.q}</p>
+      <div class="excerpt">${current.excerpt.replace(/\n/g,'<br>')}<cite>— ${current.author}</cite></div>
+    </div>
+    <div class="options" id="opts">
+      ${current.options.map((o,i) => `
+        <button class="opt" onclick="choose(${i})">
+          <span class="opt-letter">${letters[i]}</span>${o}
+        </button>`).join('')}
+    </div>
+    <div class="feedback" id="fb"></div>
+    <div class="next-wrap"><button class="next-btn" id="next-btn" onclick="nextQuestion()">Question suivante →</button></div>
+  `;
+}
+
+function choose(idx) {
+  if (answered) return;
+  answered = true;
+
+  const btns = document.querySelectorAll('.opt');
+  btns.forEach(b => b.disabled = true);
+
+  const isCorrect = idx === current.answer;
+  btns[idx].classList.add(isCorrect ? 'correct' : 'wrong');
+  if (!isCorrect) btns[current.answer].classList.add('reveal');
+
+  const fb = document.getElementById('fb');
+  const next = document.getElementById('next-btn');
+  fb.classList.add('show');
+  next.classList.add('show');
+
+  if (isCorrect) {
+    score += 10;
+    streak++;
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem('rl_hs', highScore);
+    }
+    document.getElementById('hs-display').textContent = `Meilleur : ${highScore}`;
+
+    const sv = document.getElementById('score-val');
+    sv.textContent = score;
+    sv.className = 'score-value bump';
+    setTimeout(() => sv.className = 'score-value', 300);
+
+    document.getElementById('ambient').className = 'ambient success';
+    setTimeout(() => document.getElementById('ambient').className = 'ambient', 1000);
+
+    showBurst();
+
+    fb.className = 'feedback good show';
+    fb.innerHTML = `<div class="feedback-head">✅ Bravo ! +10 points${streak >= 3 ? ` — Série de ${streak} ! 🔥` : ''}</div>${current.tip}`;
+
+    if (streak >= 5) next.textContent = `Question suivante — Série de ${streak} en cours 🔥 →`;
+  } else {
+    lastWrong = { registre: current.registre, correct: current.options[current.answer], tip: current.tip };
+    gameOver();
+    return;
+  }
+}
+
+function showBurst() {
+  const b = document.getElementById('burst');
+  b.textContent = '+10';
+  b.className = 'points-burst';
+  void b.offsetWidth;
+  b.className = 'points-burst animate';
+  setTimeout(() => b.className = 'points-burst', 800);
+}
+
+function gameOver() {
+  document.getElementById('ambient').className = 'ambient danger';
+
+  const sv = document.getElementById('score-val');
+  sv.textContent = score;
+  sv.className = 'score-value zero';
+
+  const msgs = [
+    score === 0 ? "Allez, commence à zéro, tu vas vite progresser !" :
+    score < 50 ? "Quelques révisions et tu vas décoller !" :
+    score < 100 ? "Bien joué jusqu'ici ! Les registres sont bien plus clairs maintenant." :
+    score < 200 ? "Excellente série ! Tu maîtrises vraiment les registres." :
+    "Performance exceptionnelle ! Tu es prêt(e) pour le bac."
+  ];
+
+  const area = document.getElementById('game-area');
+  area.innerHTML = `
+    <div class="gameover">
+      <div class="gameover-icon">📖</div>
+      <div class="gameover-title">Partie terminée !</div>
+      <div class="gameover-score">${score} pts</div>
+      <div class="gameover-sub">Meilleur score : ${highScore} pts · Série : ${streak}</div>
+      <div class="gameover-msg">
+        <strong>Tu t'es trompé(e) sur :</strong> Registre ${lastWrong.registre}<br>
+        La bonne réponse était <strong>${lastWrong.correct}</strong>.<br><br>
+        ${lastWrong.tip}
+      </div>
+      ${msgs[0]}
+      <br><br>
+      <button class="restart-btn" onclick="restart()">🎮 Rejouer — Battre mon record</button>
+    </div>
+  `;
+
+  score = 0;
+  streak = 0;
+  questionCount = 0;
+  document.getElementById('score-val').textContent = '0';
+  document.getElementById('score-val').className = 'score-value';
+  document.getElementById('streak').textContent = '🔥 ×0';
+  document.getElementById('streak').className = 'streak';
+}
+
+function restart() {
+  document.getElementById('ambient').className = 'ambient';
+  getPool();
+  nextQuestion();
+}
+
+// Stars
+function makeStars() {
+  const c = document.getElementById('stars');
+  for (let i = 0; i < 60; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2 + 0.5;
+    s.style.cssText = `
+      left:${Math.random()*100}vw; top:${Math.random()*100}vh;
+      width:${size}px; height:${size}px;
+      --d:${3+Math.random()*5}s; --delay:${Math.random()*6}s;
+      --op:${0.2+Math.random()*0.5};
+    `;
+    c.appendChild(s);
+  }
+}
+
+makeStars();
+getPool();
+nextQuestion();
+</script>
+</body>
+</html>
